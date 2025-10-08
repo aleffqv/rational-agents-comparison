@@ -30,6 +30,8 @@ class Movel(Agent):
         pass  # móveis não se movem
 
 
+
+#Agente reativo simples
 class Aspirador(Agent):
     def __init__(self, model):
         super().__init__(model)
@@ -73,8 +75,6 @@ class Aspirador(Agent):
                     sujeiras_vizinhas.append((pos, obj))
 
         if sujeiras_vizinhas:
-            # prioriza a de maior valor (detritos > liquido > poeira)
-            sujeiras_vizinhas.sort(key=lambda x: x[1].pontos, reverse=True)
             alvo_pos, alvo_obj = sujeiras_vizinhas[0]
 
             # verifica se há móvel bloqueando
@@ -85,7 +85,7 @@ class Aspirador(Agent):
                 print(f"➡ Moveu para sujeira {alvo_obj.tipo} em {alvo_pos} | Energia: {self.energia}")
             return
 
-        # --- 3️⃣ Caso não tenha sujeira por perto, move-se aleatoriamente ---
+        #  Caso não tenha sujeira por perto, move-se aleatoriamente
         possible_positions = grid.get_neighborhood(self.pos, moore=False, include_center=False)
         valid_moves = []
         for pos in possible_positions:
@@ -101,6 +101,19 @@ class Aspirador(Agent):
             print(f"➡ Moveu aleatoriamente para {new_position} | Energia: {self.energia}")
         else:
             print(f"⚠ Sem movimentos válidos ou energia insuficiente em {self.pos}.")
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class Ambiente(Model):
@@ -131,6 +144,6 @@ class Ambiente(Model):
         self.custom_agents.append(aspirador)
 
     def step(self):
-        # ativa cada agente (ordem fixa); se quiser aleatório, use random.shuffle antes
+        # ativa cada agente (ordem fixa); aleatório: random.shuffle
         for agent in list(self.custom_agents):
             agent.step()
