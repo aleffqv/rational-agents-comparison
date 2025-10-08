@@ -1,4 +1,4 @@
-# aspirador_modelo_model.py
+# aspirador_bmodel.py
 from mesa import Model, Agent
 from mesa.space import MultiGrid
 import random

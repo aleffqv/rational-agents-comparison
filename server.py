@@ -2,6 +2,7 @@
 from mesa.visualization import SolaraViz, make_space_component
 from apirador_model import Ambiente, Sujeira, Movel, Aspirador
 from aspirador_bmodel import AmbienteModelo
+from aspirador_objetivo import AmbienteObjetivo
 import solara 
 
 def agent_portrayal(agent):
@@ -79,34 +80,16 @@ def info_panel(model):
     )
 
 
-# Agente reativo simples
-@solara.component
-def Page0():
-    viz = SolaraViz(
-        model=Ambiente(),               # <-- instância do modelo reativo
-        components=[space_component, info_panel],
-        name="Aspirador Reativo"
-    )
-    return viz
-
-# Agente baseado em modelo (com memória)
-@solara.component
-def Page1():
-    viz = SolaraViz(
-        model=AmbienteModelo(),         # <-- instância do modelo baseado em memória
-        components=[space_component, info_panel],
-        name="Aspirador (Baseado em Modelo)"
-    )
-    return viz
 
 @solara.component
 def Page():
-    current, set_current = solara.use_state("re")  # "re" ou "bm"
+    current, set_current = solara.use_state("re")  # "re", "bm" ou "bo"
 
     nav = solara.Row(
         [
             solara.Button("Aspirador Reativo", on_click=lambda: set_current("re")),
             solara.Button("Aspirador (Baseado em Modelo)", on_click=lambda: set_current("bm")),
+            solara.Button("Aspirador (Baseado em Objetivo)", on_click=lambda: set_current("bo")),
         ],
         style={"gap": "8px"},
     )
@@ -117,14 +100,21 @@ def Page():
             components=[space_component, info_panel],
             name="Aspirador Reativo",
         )
-    else:
+    elif current == "bm":
         viz = SolaraViz(
             model=AmbienteModelo(),
             components=[space_component, info_panel],
             name="Aspirador (Baseado em Modelo)",
         )
+    else:
+        viz = SolaraViz(
+            model=AmbienteObjetivo(),
+            components=[space_component, info_panel],
+            name="Aspirador (Baseado em Objetivo)",
+        )
 
     return solara.Column([nav, viz])
+
 
 
 
