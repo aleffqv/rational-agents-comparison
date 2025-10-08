@@ -46,45 +46,61 @@ class Aspirador(Agent):
             self.parado = True
             return
 
-        # Verifica sujeiras na célula
-        cell_contents = self.model.grid.get_cell_list_contents([self.pos])
+        grid = self.model.grid
+
+        # --- 1️⃣ Verifica sujeira na célula atual ---
+        cell_contents = grid.get_cell_list_contents([self.pos])
         sujeiras = [obj for obj in cell_contents if isinstance(obj, Sujeira)]
 
-        if sujeiras and self.energia >= 2:
+        if sujeiras and self.energia >= sujeiras[0].pontos:
             alvo = sujeiras[0]
-            # remove do grid
-            try:
-                self.model.grid.remove_agent(alvo)
-            except Exception:
-                pass
-            # remove da lista custom
+            grid.remove_agent(alvo)
             try:
                 self.model.custom_agents.remove(alvo)
             except ValueError:
                 pass
             self.pontos += alvo.pontos
-            self.energia -= 2
-            print(f"Limpo {alvo.tipo} | Pontos: {self.pontos} | Energia: {self.energia}")
-        else:
-            # movimentos von Neumann (N,S,L,O)
-            possible_positions = self.model.grid.get_neighborhood(
-                self.pos, moore=False, include_center=False
-            )
-            # filtrar posições ocupadas por móveis
-            valid_moves = []
-            for pos in possible_positions:
-                contents = self.model.grid.get_cell_list_contents([pos])
-                if any(isinstance(o, Movel) for o in contents):
-                    continue
-                valid_moves.append(pos)
+            self.energia -= alvo.pontos  # custo proporcional à sujeira
+            print(f"🧹 Limpou {alvo.tipo} | Pontos: {self.pontos} | Energia: {self.energia}")
+            return
 
-            if valid_moves and self.energia >= 1:
-                new_position = random.choice(valid_moves)
-                self.model.grid.move_agent(self, new_position)
+        # --- 2️⃣ Verifica sujeira nas células vizinhas ---
+        vizinhos = grid.get_neighborhood(self.pos, moore=False, include_center=False)
+        sujeiras_vizinhas = []
+        for pos in vizinhos:
+            for obj in grid.get_cell_list_contents([pos]):
+                if isinstance(obj, Sujeira):
+                    sujeiras_vizinhas.append((pos, obj))
+
+        if sujeiras_vizinhas:
+            # prioriza a de maior valor (detritos > liquido > poeira)
+            sujeiras_vizinhas.sort(key=lambda x: x[1].pontos, reverse=True)
+            alvo_pos, alvo_obj = sujeiras_vizinhas[0]
+
+            # verifica se há móvel bloqueando
+            bloqueado = any(isinstance(o, Movel) for o in grid.get_cell_list_contents([alvo_pos]))
+            if not bloqueado and self.energia >= 1:
+                grid.move_agent(self, alvo_pos)
                 self.energia -= 1
-                print(f"Moveu para {new_position} | Energia: {self.energia}")
-            else:
-                print(f"Sem movimentos válidos ou energia insuficiente em {self.pos}.")
+                print(f"➡ Moveu para sujeira {alvo_obj.tipo} em {alvo_pos} | Energia: {self.energia}")
+            return
+
+        # --- 3️⃣ Caso não tenha sujeira por perto, move-se aleatoriamente ---
+        possible_positions = grid.get_neighborhood(self.pos, moore=False, include_center=False)
+        valid_moves = []
+        for pos in possible_positions:
+            contents = grid.get_cell_list_contents([pos])
+            if any(isinstance(o, Movel) for o in contents):
+                continue
+            valid_moves.append(pos)
+
+        if valid_moves and self.energia >= 1:
+            new_position = random.choice(valid_moves)
+            grid.move_agent(self, new_position)
+            self.energia -= 1
+            print(f"➡ Moveu aleatoriamente para {new_position} | Energia: {self.energia}")
+        else:
+            print(f"⚠ Sem movimentos válidos ou energia insuficiente em {self.pos}.")
 
 
 class Ambiente(Model):
@@ -96,7 +112,7 @@ class Ambiente(Model):
 
         # criar sujeiras
         for i in range(n_sujeiras):
-            x, y = random.randint(0, width - 1), random.randint(0, height - 1)
+            x, y = random.randint(1, width - 1), random.randint(1, height - 1)
             tipo = random.choice(list(DIRTY_TYPES.keys()))
             sujeira = Sujeira(self, tipo)   # instanciar passando o model primeiro
             self.grid.place_agent(sujeira, (x, y))
@@ -104,7 +120,7 @@ class Ambiente(Model):
 
         # criar móveis
         for i in range(n_moveis):
-            x, y = random.randint(0, width - 1), random.randint(0, height - 1)
+            x, y = random.randint(1, width - 1), random.randint(1, height - 1)
             movel = Movel(self)
             self.grid.place_agent(movel, (x, y))
             self.custom_agents.append(movel)
