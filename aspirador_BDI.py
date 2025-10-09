@@ -8,7 +8,7 @@ DIRTY_TYPES = {"poeira": 1, "liquido": 2, "detritos": 3}
 CUSTO_MOVIMENTO = 1
 CUSTO_LIMPEZA = 1
 
-# ---------------------- AGENTES ----------------------
+# ---------------------- AGENTES DO AMBIENTE ----------------------
 class Sujeira(Agent):
     def __init__(self, model, tipo):
         super().__init__(model)
@@ -29,19 +29,28 @@ class Movel(Agent):
 
 # ---------------------- ASPIRADOR BDI ----------------------
 class AspiradorBDI(Agent):
-    """Agente BDI (Belief–Desire–Intention) otimizado, evolução do modelo baseado em utilidade."""
+    """Agente BDI (Belief–Desire–Intention) com deliberação e planos formais"""
     def __init__(self, model):
         super().__init__(model)
         self.energia = 30
         self.pontos = 0
-        self.crencas = {}  # crenças sobre o ambiente
-        self.desejo_limpar_tudo = True
-        self.intencao = None
+        self.crencas = {}
+        self.desejos = []       # lista de desejos [(pos, tipo, prioridade)]
+        self.intencao = None    
         self.parado = False
-        self.varOcg = 0  # __define-ocg__
+        self.step_count = 0
+        self.varOcg = 0  
+
+        # Cada plano é uma função que executa o comportamento necessário
+        self.planos = {
+            "limpar": self.plano_limpar,
+            "explorar": self.plano_explorar,
+            "mover_para": self.plano_mover_para
+        }
 
     # ---------------------- CRENÇAS ----------------------
     def lembrar_vizinhanca(self, pos):
+        """Retorna vizinhos cardinais (sem diagonais)."""
         vizinhos = self.model.grid.get_neighborhood(pos, moore=False, include_center=False)
         vistos = []
         for v in vizinhos:
@@ -56,63 +65,82 @@ class AspiradorBDI(Agent):
         return vistos
 
     def atualizar_crencas(self, pos, limpo=False):
-        """Atualiza o que o agente acredita sobre o ambiente."""
+        """Atualiza crenças sobre o ambiente."""
         vistos = self.lembrar_vizinhanca(pos)
         if pos not in self.crencas:
-            self.crencas[pos] = {
-                "visto": vistos,
-                "limpo": limpo,
-                "visitado": True,
-                "visitas": 1,
-            }
+            self.crencas[pos] = {"visto": vistos, "limpo": limpo, "visitas": 1}
         else:
             self.crencas[pos]["visto"] = vistos
             self.crencas[pos]["limpo"] = limpo
-            self.crencas[pos]["visitado"] = True
             self.crencas[pos]["visitas"] += 1
 
-    # ---------------------- DESEJOS ----------------------
+    # ---------------------- GERAÇÃO DE DESEJOS ----------------------
     def sujeiras_conhecidas(self):
         sujeiras = []
         for pos, info in self.crencas.items():
             for vpos, tipo in info["visto"]:
                 if "sujeira" in tipo:
-                    cell_contents = self.model.grid.get_cell_list_contents([vpos])
-                    if any(isinstance(a, Sujeira) for a in cell_contents):
-                        t = tipo.split("_")[1]
-                        sujeiras.append((vpos, t))
+                    cell = self.model.grid.get_cell_list_contents([vpos])
+                    if any(isinstance(a, Sujeira) for a in cell):
+                        tipo_s = tipo.split("_")[1]
+                        sujeiras.append((vpos, tipo_s))
         return sujeiras
 
-    def calcular_utilidade(self, destino, tipo_sujeira):
+    def calcular_prioridade(self, pos, tipo_sujeira):
+        """Define prioridade (peso) do desejo."""
         x0, y0 = self.pos
-        distancia = abs(destino[0] - x0) + abs(destino[1] - y0)
+        distancia = abs(pos[0] - x0) + abs(pos[1] - y0)
         ganho = DIRTY_TYPES[tipo_sujeira]
-        custo = (distancia * CUSTO_MOVIMENTO) + (DIRTY_TYPES[tipo_sujeira] * CUSTO_LIMPEZA)
-        return ganho / custo if custo > 0 else 0
+        custo = distancia * CUSTO_MOVIMENTO + ganho * CUSTO_LIMPEZA
+        return (ganho / (custo + 1)) * 10
 
-    def definir_intencao(self):
-        """Define intenção (alvo) com base nas crenças e desejos."""
+    def gerar_desejos(self):
+        """Gera lista de desejos com prioridade."""
         sujeiras = self.sujeiras_conhecidas()
-        if not sujeiras:
-            return None
-        utilidades = [(pos, self.calcular_utilidade(pos, tipo)) for pos, tipo in sujeiras]
-        utilidades.sort(key=lambda x: x[1], reverse=True)
-        return utilidades[0][0] if utilidades else None
+        novos_desejos = []
+        for pos, tipo in sujeiras:
+            prioridade = self.calcular_prioridade(pos, tipo)
+            novos_desejos.append((pos, tipo, prioridade))
+        self.desejos = novos_desejos
 
-    # ---------------------- INTENÇÃO (AÇÕES) ----------------------
-    def mover_para(self, destino):
+    # ---------------------- DELIBERAÇÃO ----------------------
+    def deliberar(self):
+        """Escolhe desejo de maior prioridade e resolve conflitos."""
+        if not self.desejos:
+            return None
+        # Remove desejos redundantes
+        unicos = {}
+        for pos, tipo, prio in self.desejos:
+            if pos not in unicos or prio > unicos[pos][1]:
+                unicos[pos] = (tipo, prio)
+        desejos_filtrados = [(pos, t, p) for pos, (t, p) in unicos.items()]
+        desejos_filtrados.sort(key=lambda x: x[2], reverse=True)
+        return desejos_filtrados[0] if desejos_filtrados else None
+
+    # ---------------------- EXECUÇÃO DE PLANOS ----------------------
+    def plano_limpar(self):
+        pos = self.pos
+        cell = self.model.grid.get_cell_list_contents([pos])
+        sujeiras = [a for a in cell if isinstance(a, Sujeira)]
+        if sujeiras:
+            alvo = sujeiras[0]
+            self.model.grid.remove_agent(alvo)
+            if alvo in self.model.custom_agents:
+                self.model.custom_agents.remove(alvo)
+            self.pontos += alvo.pontos
+            self.energia -= alvo.pontos * CUSTO_LIMPEZA
+            self.crencas[pos]["limpo"] = True
+            self.intencao = None
+            return True
+        return False
+
+    def plano_mover_para(self, destino):
+        """Executa movimento em direção ao destino."""
         if not destino:
             return False
         x, y = self.pos
         dx, dy = destino[0] - x, destino[1] - y
-
-        if dx != 0:
-            passo = (x + (1 if dx > 0 else -1), y)
-        elif dy != 0:
-            passo = (x, y + (1 if dy > 0 else -1))
-        else:
-            return False
-
+        passo = (x + (1 if dx > 0 else -1), y) if dx != 0 else (x, y + (1 if dy > 0 else -1))
         if 0 <= passo[0] < self.model.grid.width and 0 <= passo[1] < self.model.grid.height:
             if not any(isinstance(o, Movel) for o in self.model.grid.get_cell_list_contents([passo])):
                 self.model.grid.move_agent(self, passo)
@@ -120,25 +148,18 @@ class AspiradorBDI(Agent):
                 return True
         return False
 
-    def explorar(self):
-        """Explora locais pouco visitados e desconhecidos, evitando desperdício de energia."""
+    def plano_explorar(self):
+        """Explora locais menos visitados."""
         vizinhos = self.model.grid.get_neighborhood(self.pos, moore=False, include_center=False)
-        candidatos = []
+        livres = [v for v in vizinhos if not any(isinstance(o, Movel) for o in self.model.grid.get_cell_list_contents([v]))]
+        if not livres:
+            return False
+        destino = min(livres, key=lambda v: self.crencas.get(v, {"visitas": 0})["visitas"])
+        self.model.grid.move_agent(self, destino)
+        self.energia -= CUSTO_MOVIMENTO
+        return True
 
-        for v in vizinhos:
-            objs = self.model.grid.get_cell_list_contents([v])
-            if any(isinstance(o, Movel) for o in objs):
-                continue
-            visitas = self.crencas[v]["visitas"] if v in self.crencas else 0
-            candidatos.append((v, visitas))
-
-        if candidatos:
-            candidatos.sort(key=lambda x: x[1])
-            destino = candidatos[0][0]
-            self.model.grid.move_agent(self, destino)
-            self.energia -= CUSTO_MOVIMENTO
-
-    # ---------------------- DECISÃO ----------------------
+    # ---------------------- PASSOS ----------------------
     def step(self):
         if self.parado or self.energia <= 0:
             self.parado = True
@@ -146,43 +167,38 @@ class AspiradorBDI(Agent):
 
         pos = self.pos
         grid = self.model.grid
+
+        # perceber a att crenças
         self.atualizar_crencas(pos, limpo=True)
 
-        # limpar sujeira
-        cell_contents = grid.get_cell_list_contents([pos])
-        sujeiras = [a for a in cell_contents if isinstance(a, Sujeira)]
-        if sujeiras:
-            alvo = sujeiras[0]
-            grid.remove_agent(alvo)
-            try:
-                self.model.custom_agents.remove(alvo)
-            except ValueError:
-                pass
-            self.pontos += alvo.pontos
-            self.energia -= alvo.pontos * CUSTO_LIMPEZA
-            self.atualizar_crencas(pos, limpo=True)
-            self.intencao = None
-            return
+        # atualizar desejos
+        self.gerar_desejos()
 
-        # verifica se há sujeira restante
+        # deliberar e escolher intenção
+        if not self.intencao or self.step_count % 3 == 0:
+            self.intencao = self.deliberar()
+
+        # executar plano conforme intenção
+        if self.intencao:
+            destino, tipo, prioridade = self.intencao
+            if destino == pos:
+                self.planos["limpar"]()
+            else:
+                moved = self.planos["mover_para"](destino)
+                if not moved:
+                    self.intencao = None
+                    self.planos["explorar"]()
+        else:
+            self.planos["explorar"]()
+
+        # parar se o ambiente estiver limpo
         if not any(isinstance(a, Sujeira) for a in self.model.custom_agents):
             self.parado = True
-            return
 
-        # define ou executa intenção
-        if not self.intencao:
-            self.intencao = self.definir_intencao()
-
-        if self.intencao:
-            moved = self.mover_para(self.intencao)
-            if not moved:
-                self.intencao = None
-                self.explorar()
-        else:
-            self.explorar()
+        self.step_count += 1
 
 
-
+# ---------------------- AMBIENTE ----------------------
 class AmbienteBDI(Model):
     def __init__(self, width=5, height=5, n_sujeiras=5, n_moveis=3):
         super().__init__()

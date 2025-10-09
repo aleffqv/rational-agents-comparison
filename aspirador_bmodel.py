@@ -34,7 +34,7 @@ class AspiradorModelo(Agent):
         super().__init__(model)
         self.energia = 30
         self.pontos = 0
-        self.memoria = {}  # {(x, y): {"visto": [(pos, tipo_objeto), ...], "limpo": bool}}
+        self.memoria = {} 
         self.parado = False
 
     def lembrar_vizinhanca(self, pos):
@@ -70,7 +70,7 @@ class AspiradorModelo(Agent):
         grid = self.model.grid
         pos_atual = self.pos
 
-        # Limpar sujeira na célula atual
+        # limpar sujeira na célula atual
         cell_contents = grid.get_cell_list_contents([pos_atual])
         sujeiras = [a for a in cell_contents if isinstance(a, Sujeira)]
         if sujeiras:
@@ -84,10 +84,10 @@ class AspiradorModelo(Agent):
                 self.registrar_memoria(pos_atual, limpo=True)
                 return
 
-        # Limpar sujeira na vizinhança
+        # limpar sujeira na vizinhança
         vizinhos = grid.get_neighborhood(pos_atual, moore=False, include_center=False)
         for v in vizinhos:
-            # Ignora células com móveis
+            # ignora células com móveis
             if any(isinstance(o, Movel) for o in grid.get_cell_list_contents([v])):
                 continue
 
@@ -105,10 +105,10 @@ class AspiradorModelo(Agent):
                 self.registrar_memoria(v, limpo=True)
                 return
 
-        # Atualiza memória da célula atual
+        # atualiza memória da célula atual
         self.registrar_memoria(pos_atual, limpo=True)
 
-        # Procurar sujeira conhecida na memória
+        # procurar sujeira conhecida na memória
         sujeira_memoria = []
         for pos, info in self.memoria.items():
             if info.get("limpo", False):

@@ -13,7 +13,6 @@ DIRTY_TYPES = {
 
 class Sujeira(Agent):
     def __init__(self, model, tipo):
-        # note: em Mesa 3.x o construtor do Agent recebe o model apenas
         super().__init__(model)
         self.tipo = tipo
         self.pontos = DIRTY_TYPES[tipo]
@@ -31,7 +30,7 @@ class Movel(Agent):
 
 
 
-#Agente reativo simples
+#agente reativo simples
 class Aspirador(Agent):
     def __init__(self, model):
         super().__init__(model)
@@ -50,7 +49,7 @@ class Aspirador(Agent):
 
         grid = self.model.grid
 
-        # --- 1️⃣ Verifica sujeira na célula atual ---
+        # verifica sujeira na célula atual
         cell_contents = grid.get_cell_list_contents([self.pos])
         sujeiras = [obj for obj in cell_contents if isinstance(obj, Sujeira)]
 
@@ -66,7 +65,7 @@ class Aspirador(Agent):
             print(f"🧹 Limpou {alvo.tipo} | Pontos: {self.pontos} | Energia: {self.energia}")
             return
 
-        # --- 2️⃣ Verifica sujeira nas células vizinhas ---
+        # verifica sujeira nas células vizinhas 
         vizinhos = grid.get_neighborhood(self.pos, moore=False, include_center=False)
         sujeiras_vizinhas = []
         for pos in vizinhos:
@@ -85,7 +84,7 @@ class Aspirador(Agent):
                 print(f"➡ Moveu para sujeira {alvo_obj.tipo} em {alvo_pos} | Energia: {self.energia}")
             return
 
-        #  Caso não tenha sujeira por perto, move-se aleatoriamente
+        #  caso não tenha sujeira por perto, move-se aleatoriamente
         possible_positions = grid.get_neighborhood(self.pos, moore=False, include_center=False)
         valid_moves = []
         for pos in possible_positions:
@@ -98,9 +97,9 @@ class Aspirador(Agent):
             new_position = random.choice(valid_moves)
             grid.move_agent(self, new_position)
             self.energia -= 1
-            print(f"➡ Moveu aleatoriamente para {new_position} | Energia: {self.energia}")
+            print(f"Moveu aleatoriamente para {new_position} | Energia: {self.energia}")
         else:
-            print(f"⚠ Sem movimentos válidos ou energia insuficiente em {self.pos}.")
+            print(f"Sem movimentos válidos ou energia insuficiente em {self.pos}.")
 
 
 

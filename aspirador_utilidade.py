@@ -27,7 +27,7 @@ class Movel(Agent):
 
 
 class AspiradorUtilidade(Agent):
-    """Aspirador baseado em utilidade e exploração inteligente otimizada."""
+    """Aspirador baseado em utilidade e exploração otimizada (__define-ocg__)."""
     def __init__(self, model):
         super().__init__(model)
         self.energia = 30
@@ -35,7 +35,7 @@ class AspiradorUtilidade(Agent):
         self.memoria = {}  # pos -> {"visto": [...], "limpo": bool, "visitado": bool, "visitas": int}
         self.objetivo_atual = None
         self.parado = False
-        self.varOcg = 0  # __define-ocg__
+        self.varOcg = 0
 
     # ---------------------- MEMÓRIA ----------------------
     def lembrar_vizinhanca(self, pos):
@@ -73,6 +73,7 @@ class AspiradorUtilidade(Agent):
         for pos, info in self.memoria.items():
             for vpos, tipo in info["visto"]:
                 if "sujeira" in tipo:
+                    # verifica se a sujeira ainda existe
                     cell_contents = self.model.grid.get_cell_list_contents([vpos])
                     if any(isinstance(a, Sujeira) for a in cell_contents):
                         t = tipo.split("_")[1]
@@ -84,9 +85,15 @@ class AspiradorUtilidade(Agent):
         distancia = abs(destino[0] - x0) + abs(destino[1] - y0)
         ganho = DIRTY_TYPES[tipo_sujeira]
         custo = (distancia * CUSTO_MOVIMENTO) + (DIRTY_TYPES[tipo_sujeira] * CUSTO_LIMPEZA)
-        if custo == 0:
-            return 0
-        return ganho / custo
+
+        # penaliza revisitas
+        revisitas = self.memoria[destino]["visitas"] if destino in self.memoria else 0
+        penalidade = 1 + (0.1 * revisitas)
+
+        # fator de curiosidade (para explorar novas regiões)
+        curiosidade = 1.2 if destino not in self.memoria else 1.0
+
+        return (ganho * curiosidade) / (custo * penalidade) if custo > 0 else 0
 
     def escolher_melhor_alvo(self):
         sujeiras = self.sujeiras_conhecidas()
@@ -103,13 +110,12 @@ class AspiradorUtilidade(Agent):
         x, y = self.pos
         dx, dy = destino[0] - x, destino[1] - y
 
-        # movimenta em um eixo por vez
         if dx != 0:
             passo = (x + (1 if dx > 0 else -1), y)
         elif dy != 0:
             passo = (x, y + (1 if dy > 0 else -1))
         else:
-            return False  # já chegou
+            return False
 
         if 0 <= passo[0] < self.model.grid.width and 0 <= passo[1] < self.model.grid.height:
             if not any(isinstance(o, Movel) for o in self.model.grid.get_cell_list_contents([passo])):
@@ -120,10 +126,8 @@ class AspiradorUtilidade(Agent):
 
     # ---------------------- EXPLORAÇÃO ----------------------
     def explorar(self):
-        """Explora priorizando células pouco visitadas e desconhecidas."""
         vizinhos = self.model.grid.get_neighborhood(self.pos, moore=False, include_center=False)
         candidatos = []
-
         for v in vizinhos:
             objs = self.model.grid.get_cell_list_contents([v])
             if any(isinstance(o, Movel) for o in objs):
@@ -132,8 +136,9 @@ class AspiradorUtilidade(Agent):
             candidatos.append((v, visitas))
 
         if candidatos:
-            candidatos.sort(key=lambda x: x[1])  # menos visitado primeiro
-            destino = candidatos[0][0]
+            candidatos.sort(key=lambda x: x[1])
+            # leve aleatoriedade para evitar loops
+            destino = random.choice(candidatos[:2])[0] if len(candidatos) > 1 else candidatos[0][0]
             self.model.grid.move_agent(self, destino)
             self.energia -= CUSTO_MOVIMENTO
 
@@ -146,7 +151,7 @@ class AspiradorUtilidade(Agent):
         pos = self.pos
         grid = self.model.grid
 
-        # limpa imediatamente se estiver em cima de sujeira
+        # limpa se estiver em cima de sujeira
         cell_contents = grid.get_cell_list_contents([pos])
         sujeiras = [a for a in cell_contents if isinstance(a, Sujeira)]
         if sujeiras:
@@ -160,17 +165,17 @@ class AspiradorUtilidade(Agent):
             self.energia -= alvo.pontos * CUSTO_LIMPEZA
             self.registrar_memoria(pos, limpo=True)
             self.objetivo_atual = None
-            return  # já limpou, não precisa mover neste turno
+            return
 
         # registra posição atual
         self.registrar_memoria(pos, limpo=True)
 
-        # verifica se ainda há sujeira
+        # termina se não há sujeiras restantes
         if not any(isinstance(a, Sujeira) for a in self.model.custom_agents):
             self.parado = True
             return
 
-        # prioriza alvo conhecido
+        # define ação
         melhor_alvo = self.escolher_melhor_alvo()
         if melhor_alvo:
             moved = self.mover_para(melhor_alvo)
