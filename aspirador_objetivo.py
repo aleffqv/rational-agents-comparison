@@ -28,7 +28,7 @@ class Movel(Agent):
 
 
 class AspiradorObjetivo(Agent):
-    """Agente baseado em objetivo com exploração inteligente."""
+    """Agente baseado em objetivo"""
     def __init__(self, model):
         super().__init__(model)
         self.energia = 30
@@ -108,11 +108,11 @@ class AspiradorObjetivo(Agent):
         pos = self.pos
         vizinhos = self.model.grid.get_neighborhood(pos, moore=False, include_center=False)
 
-        # 1️⃣ Prioriza posições desconhecidas
+        # Prioriza posições desconhecidas
         desconhecidos = [v for v in vizinhos if v not in self.memoria]
         livres = [v for v in desconhecidos if not any(isinstance(o, Movel) for o in self.model.grid.get_cell_list_contents([v]))]
 
-        # 2️⃣ Se todas já foram visitadas, anda para a que foi visitada há mais tempo
+        # Se todas já foram visitadas, anda para a que foi visitada há mais tempo
         if not livres:
             todas_livres = [
                 v for v in vizinhos

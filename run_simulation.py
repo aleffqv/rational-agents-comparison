@@ -1,4 +1,3 @@
-# run_simulation.py
 from apirador_model import Ambiente
 
 model = Ambiente()

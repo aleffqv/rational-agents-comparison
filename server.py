@@ -3,6 +3,8 @@ from mesa.visualization import SolaraViz, make_space_component
 from apirador_model import Ambiente, Sujeira, Movel, Aspirador
 from aspirador_bmodel import AmbienteModelo
 from aspirador_objetivo import AmbienteObjetivo
+from aspirador_utilidade import AmbienteUtilidade 
+from aspirador_BDI import AmbienteBDI
 import solara 
 
 def agent_portrayal(agent):
@@ -40,7 +42,6 @@ def agent_portrayal(agent):
         varOcg["text"] = f"E:{energia}"
         return varOcg
 
-    # fallback
     varOcg["color"] = "blue"
     return varOcg
 
@@ -64,7 +65,6 @@ def info_panel(model):
     detritos = sum(getattr(a, "tipo", "") == "detritos" for a in agentes)
     moveis = sum(a.__class__.__name__ == "Movel" for a in agentes)
 
-    # pega o aspirador (qualquer classe que exponha `energia`)
     aspirador = next((a for a in agentes if getattr(a, "energia", None) is not None), None)
     energia_atual = aspirador.energia if aspirador else 0
     varOcg = energia_atual
@@ -83,37 +83,32 @@ def info_panel(model):
 
 @solara.component
 def Page():
-    current, set_current = solara.use_state("re")  # "re", "bm" ou "bo"
+    current, set_current = solara.use_state("re")  # "re", "bm", "bo", "bu", "bdi"
 
     nav = solara.Row(
         [
             solara.Button("Aspirador Reativo", on_click=lambda: set_current("re")),
             solara.Button("Aspirador (Baseado em Modelo)", on_click=lambda: set_current("bm")),
             solara.Button("Aspirador (Baseado em Objetivo)", on_click=lambda: set_current("bo")),
+            solara.Button("Aspirador (Baseado em Utilidade)", on_click=lambda: set_current("bu")),
+            solara.Button("Aspirador (Modelo BDI)", on_click=lambda: set_current("bdi")),
         ],
         style={"gap": "8px"},
     )
 
     if current == "re":
-        viz = SolaraViz(
-            model=Ambiente(),
-            components=[space_component, info_panel],
-            name="Aspirador Reativo",
-        )
+        viz = SolaraViz(model=Ambiente(), components=[space_component, info_panel], name="Aspirador Reativo")
     elif current == "bm":
-        viz = SolaraViz(
-            model=AmbienteModelo(),
-            components=[space_component, info_panel],
-            name="Aspirador (Baseado em Modelo)",
-        )
+        viz = SolaraViz(model=AmbienteModelo(), components=[space_component, info_panel], name="Aspirador (Baseado em Modelo)")
+    elif current == "bo":
+        viz = SolaraViz(model=AmbienteObjetivo(), components=[space_component, info_panel], name="Aspirador (Baseado em Objetivo)")
+    elif current == "bu":
+        viz = SolaraViz(model=AmbienteUtilidade(), components=[space_component, info_panel], name="Aspirador (Baseado em Utilidade)")
     else:
-        viz = SolaraViz(
-            model=AmbienteObjetivo(),
-            components=[space_component, info_panel],
-            name="Aspirador (Baseado em Objetivo)",
-        )
+        viz = SolaraViz(model=AmbienteBDI(), components=[space_component, info_panel], name="Aspirador (Modelo BDI)")
 
     return solara.Column([nav, viz])
+
 
 
 
