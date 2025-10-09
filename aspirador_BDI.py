@@ -50,7 +50,7 @@ class AspiradorBDI(Agent):
 
     # ---------------------- CRENÇAS ----------------------
     def lembrar_vizinhanca(self, pos):
-        """Retorna vizinhos cardinais (sem diagonais)."""
+        """retorna vizinhos cardinais (sem diagonais)."""
         vizinhos = self.model.grid.get_neighborhood(pos, moore=False, include_center=False)
         vistos = []
         for v in vizinhos:
@@ -65,7 +65,7 @@ class AspiradorBDI(Agent):
         return vistos
 
     def atualizar_crencas(self, pos, limpo=False):
-        """Atualiza crenças sobre o ambiente."""
+        """atualiza crenças sobre o ambiente."""
         vistos = self.lembrar_vizinhanca(pos)
         if pos not in self.crencas:
             self.crencas[pos] = {"visto": vistos, "limpo": limpo, "visitas": 1}
@@ -87,7 +87,7 @@ class AspiradorBDI(Agent):
         return sujeiras
 
     def calcular_prioridade(self, pos, tipo_sujeira):
-        """Define prioridade (peso) do desejo."""
+        """define prioridade (peso) do desejo."""
         x0, y0 = self.pos
         distancia = abs(pos[0] - x0) + abs(pos[1] - y0)
         ganho = DIRTY_TYPES[tipo_sujeira]
@@ -95,7 +95,7 @@ class AspiradorBDI(Agent):
         return (ganho / (custo + 1)) * 10
 
     def gerar_desejos(self):
-        """Gera lista de desejos com prioridade."""
+        """gera lista de desejos com prioridade"""
         sujeiras = self.sujeiras_conhecidas()
         novos_desejos = []
         for pos, tipo in sujeiras:
@@ -105,7 +105,7 @@ class AspiradorBDI(Agent):
 
     # ---------------------- DELIBERAÇÃO ----------------------
     def deliberar(self):
-        """Escolhe desejo de maior prioridade e resolve conflitos."""
+        """escolhe desejo de maior prioridade e resolve conflitos"""
         if not self.desejos:
             return None
         # Remove desejos redundantes
@@ -135,7 +135,7 @@ class AspiradorBDI(Agent):
         return False
 
     def plano_mover_para(self, destino):
-        """Executa movimento em direção ao destino."""
+        """executa movimento em direção ao destino."""
         if not destino:
             return False
         x, y = self.pos

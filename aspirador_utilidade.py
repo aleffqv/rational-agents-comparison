@@ -32,7 +32,7 @@ class AspiradorUtilidade(Agent):
         super().__init__(model)
         self.energia = 30
         self.pontos = 0
-        self.memoria = {}  # pos -> {"visto": [...], "limpo": bool, "visitado": bool, "visitas": int}
+        self.memoria = {} 
         self.objetivo_atual = None
         self.parado = False
         self.varOcg = 0
